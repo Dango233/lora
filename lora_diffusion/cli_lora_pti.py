@@ -605,8 +605,11 @@ def train(
     )
 
     if gradient_checkpointing:
+        # Keep unet in train mode if we are using gradient checkpointing to save memory.
+        # The dropout cannot be != 0 so it doesn't matter if we are in eval or train mode.
+        unet.train()
         unet.enable_gradient_checkpointing()
-        text_encoder.enable_gradient_checkpointing()
+        text_encoder.gradient_checkpointing_enable()
 
     if scale_lr:
         unet_lr = learning_rate_unet * gradient_accumulation_steps * train_batch_size
@@ -614,6 +617,7 @@ def train(
             learning_rate_text * gradient_accumulation_steps * train_batch_size
         )
         ti_lr = learning_rate_ti * gradient_accumulation_steps * train_batch_size
+        continue_inversion_lr = continue_inversion_lr * gradient_accumulation_steps * train_batch_size
     else:
         unet_lr = learning_rate_unet
         text_encoder_lr = learning_rate_text
