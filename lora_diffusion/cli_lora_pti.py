@@ -290,7 +290,7 @@ def train_inversion(
     loss_sum = 0.0
 
     for epoch in range(math.ceil(num_steps / len(dataloader))):
-        unet.eval()
+        unet.train()
         text_encoder.train()
         for batch in dataloader:
 
@@ -304,7 +304,7 @@ def train_inversion(
                         vae,
                         text_encoder,
                         scheduler,
-                        mixed_precision=mixed_precision,
+                        mixed_precision=True,
                     )
                     / accum_iter
                 )
@@ -337,7 +337,7 @@ def train_inversion(
                             ) * (
                                 pre_norm + lambda_ * (0.4 - pre_norm)
                             )
-                            print(pre_norm)
+                            #print(pre_norm)
 
                         current_norm = (
                             text_encoder.get_input_embeddings()
@@ -349,7 +349,7 @@ def train_inversion(
                             index_no_updates
                         ] = orig_embeds_params[index_no_updates]
 
-                        print(f"Current Norm : {current_norm}")
+                        #print(f"Current Norm : {current_norm}")
 
                 global_step += 1
                 progress_bar.update(1)
@@ -658,6 +658,11 @@ def train(
     for param in params_to_freeze:
         param.requires_grad = False
 
+    # just to make sure
+    text_encoder.text_model.encoder.requires_grad_(False)
+    text_encoder.text_model.final_layer_norm.requires_grad_(False)
+    text_encoder.text_model.embeddings.position_embedding.requires_grad_(False)
+
     if use_8bit_adam:
         try:
             import bitsandbytes as bnb
@@ -707,7 +712,7 @@ def train(
             log_wandb=log_wandb,
             wandb_log_prompt_cnt=wandb_log_prompt_cnt,
             class_token=class_token,
-            mixed_precision=False,
+            mixed_precision=True,
             tokenizer=tokenizer,
             clip_ti_decay=clip_ti_decay,
         )
@@ -745,26 +750,30 @@ def train(
         )
         for param in params_to_freeze:
             param.requires_grad = False
+        # just to make sure
+        text_encoder.text_model.encoder.requires_grad_(False)
+        text_encoder.text_model.final_layer_norm.requires_grad_(False)
+        text_encoder.text_model.embeddings.position_embedding.requires_grad_(False)
 
-    if train_text_encoder:
         text_encoder_lora_params, _ = inject_trainable_lora(
             text_encoder,
             target_replace_module=lora_clip_target_modules,
             r=lora_rank,
         )
+        inspect_lora(text_encoder)
+
+    if train_text_encoder:
         params_to_optimize += [
             {
                 "params": itertools.chain(*text_encoder_lora_params),
                 "lr": text_encoder_lr,
             }
         ]
-        inspect_lora(text_encoder)
 
     lora_optimizers = optimizer_class(params_to_optimize, weight_decay=weight_decay_lora)
 
     unet.train()
-    if train_text_encoder:
-        text_encoder.train()
+    text_encoder.train()
 
     train_dataset.blur_amount = 70
 
