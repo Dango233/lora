@@ -43,6 +43,10 @@ from lora_diffusion import (
     evaluate_pipe,
 )
 
+from lora_diffusion.xformers_utils import set_use_memory_efficient_attention_xformers
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.benchmark = True
+
 
 def get_models(
     pretrained_model_name_or_path,
@@ -488,7 +492,6 @@ def perform_tuning(
             if global_step >= num_steps:
                 return
 
-
 def train(
     instance_data_dir: str,
     pretrained_model_name_or_path: str,
@@ -593,12 +596,17 @@ def train(
         device=device,
     )
 
+    set_use_memory_efficient_attention_xformers(unet, True)
+    set_use_memory_efficient_attention_xformers(vae, True)
+
+    print("xformer Enabled!")
     noise_scheduler = DDPMScheduler.from_config(
         pretrained_model_name_or_path, subfolder="scheduler"
     )
 
     if gradient_checkpointing:
         unet.enable_gradient_checkpointing()
+        text_encoder.enable_gradient_checkpointing()
 
     if scale_lr:
         unet_lr = learning_rate_unet * gradient_accumulation_steps * train_batch_size
