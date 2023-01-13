@@ -95,6 +95,7 @@ class PivotalTuningDatasetCapation(Dataset):
         resize=True,
         use_face_segmentation_condition=False,
         blur_amount: int = 70,
+        repeats = 100
     ):
         self.size = size
         self.tokenizer = tokenizer
@@ -111,14 +112,14 @@ class PivotalTuningDatasetCapation(Dataset):
         self.use_template = use_template
         self.templates = OBJECT_TEMPLATE if use_template == "object" else STYLE_TEMPLATE
 
-        self._length = self.num_instance_images
+        self._length = self.num_instance_images * repeats
 
         if class_data_root is not None:
             self.class_data_root = Path(class_data_root)
             self.class_data_root.mkdir(parents=True, exist_ok=True)
             self.class_images_path = list(self.class_data_root.iterdir())
             self.num_class_images = len(self.class_images_path)
-            self._length = max(self.num_class_images, self.num_instance_images)
+            self._length = max(self.num_class_images, self.num_instance_images * repeats)
             self.class_prompt = class_prompt
         else:
             self.class_data_root = None
@@ -153,8 +154,11 @@ class PivotalTuningDatasetCapation(Dataset):
 
     def __getitem__(self, index):
         example = {}
+        i = index % self.num_instance_images
+        if i == 0:
+            random.shuffle(self.instance_images_path)
         instance_image = Image.open(
-            self.instance_images_path[index % self.num_instance_images]
+            self.instance_images_path[i]
         )
         if not instance_image.mode == "RGB":
             instance_image = instance_image.convert("RGB")
@@ -166,7 +170,7 @@ class PivotalTuningDatasetCapation(Dataset):
 
             text = random.choice(self.templates).format(input_tok)
         else:
-            text = self.instance_images_path[index % self.num_instance_images].stem
+            text = self.instance_images_path[i].stem
             if self.token_map is not None:
                 for token, value in self.token_map.items():
                     text = text.replace(token, value)
@@ -175,7 +179,7 @@ class PivotalTuningDatasetCapation(Dataset):
 
         if self.use_face_segmentation_condition:
             image = cv2.imread(
-                str(self.instance_images_path[index % self.num_instance_images])
+                str(self.instance_images_path[i])
             )
             results = self.face_detection.process(
                 cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -235,7 +239,7 @@ class PivotalTuningDatasetCapation(Dataset):
 
         if self.class_data_root:
             class_image = Image.open(
-                self.class_images_path[index % self.num_class_images]
+                self.class_images_path[i]
             )
             if not class_image.mode == "RGB":
                 class_image = class_image.convert("RGB")
