@@ -171,7 +171,7 @@ class PivotalTuningDatasetCapation(Dataset):
                 for token, value in self.token_map.items():
                     text = text.replace(token, value)
 
-        print(text)
+        # print(text)
 
         if self.use_face_segmentation_condition:
             image = cv2.imread(
