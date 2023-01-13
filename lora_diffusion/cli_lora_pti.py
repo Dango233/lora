@@ -654,9 +654,22 @@ def train(
     for param in params_to_freeze:
         param.requires_grad = False
 
+    if use_8bit_adam:
+        try:
+            import bitsandbytes as bnb
+        except ImportError:
+            raise ImportError(
+                "To use 8-bit Adam, please install the bitsandbytes library: `pip install bitsandbytes`."
+            )
+
+        optimizer_class = bnb.optim.AdamW8bit
+        print("8bit Adam enabled!")
+    else:
+        optimizer_class = optim.AdamW
+
     # STEP 1 : Perform Inversion
     if perform_inversion:
-        ti_optimizer = optim.AdamW(
+        ti_optimizer = optimizer_class(
             text_encoder.get_input_embeddings().parameters(),
             lr=ti_lr,
             betas=(0.9, 0.999),
@@ -743,7 +756,7 @@ def train(
         ]
         inspect_lora(text_encoder)
 
-    lora_optimizers = optim.AdamW(params_to_optimize, weight_decay=weight_decay_lora)
+    lora_optimizers = optimizer_class(params_to_optimize, weight_decay=weight_decay_lora)
 
     unet.train()
     if train_text_encoder:
