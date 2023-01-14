@@ -95,7 +95,7 @@ class PivotalTuningDatasetCapation(Dataset):
         resize=True,
         use_face_segmentation_condition=False,
         blur_amount: int = 70,
-        repeats = 100
+        repeats = 12
     ):
         self.size = size
         self.tokenizer = tokenizer

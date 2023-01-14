@@ -164,7 +164,7 @@ def text2img_dataloader(train_dataset, train_batch_size, tokenizer, vae, text_en
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=train_batch_size,
-        shuffle=True,
+        shuffle=False, #Shuffling handled in Dataset. 
         collate_fn=collate_fn,
     )
 
@@ -182,10 +182,11 @@ def loss_step(
 ):
     weight_dtype = torch.float32
 
-    latents = vae.encode(
-        batch["pixel_values"].to(dtype=weight_dtype).to(unet.device)
-    ).latent_dist.sample()
-    latents = latents * 0.18215
+    with torch.cuda.amp.autocast():
+        latents = vae.encode(
+            batch["pixel_values"].to(dtype=weight_dtype).to(unet.device)
+        ).latent_dist.sample()
+        latents = latents * 0.18215
 
     noise = torch.randn_like(latents)
     bsz = latents.shape[0]
