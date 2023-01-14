@@ -79,7 +79,7 @@ class PivotalTuningDatasetCapation(Dataset):
     A dataset to prepare the instance and class images with the prompts for fine-tuning the model.
     It pre-processes the images and the tokenizes prompts.
     """
-
+    # TODO: cache the class latent
     def __init__(
         self,
         instance_data_root,
@@ -115,6 +115,7 @@ class PivotalTuningDatasetCapation(Dataset):
         self._length = self.num_instance_images * repeats
         self.pointer = list(range(self.num_instance_images))
         self.randomized = False
+        self.instance_latent_cached = False
 
         if class_data_root is not None:
             self.class_data_root = Path(class_data_root)
@@ -160,12 +161,17 @@ class PivotalTuningDatasetCapation(Dataset):
         if i == 0 and self.randomized >=1:
             random.shuffle(self.pointer)
         i = self.pointer[i]
-        instance_image = Image.open(
-            self.instance_images_path[i]
-        )
-        if not instance_image.mode == "RGB":
-            instance_image = instance_image.convert("RGB")
-        example["instance_images"] = self.image_transforms(instance_image)
+        if self.instance_latent_cached:
+            example["instance_latents"] = self.cached_instance_latent[i]
+            if self.use_face_segmentation_condition:
+                example["mask"] = self.cached_instance_mask[i]
+        if not self.instance_latent_cached:
+            instance_image = Image.open(
+                self.instance_images_path[i]
+            )
+            if not instance_image.mode == "RGB":
+                instance_image = instance_image.convert("RGB")
+            example["instance_images"] = self.image_transforms(instance_image)
 
         if self.use_template:
             assert self.token_map is not None
@@ -179,59 +185,59 @@ class PivotalTuningDatasetCapation(Dataset):
                     text = text.replace(token, value)
 
         # print(text)
-
-        if self.use_face_segmentation_condition:
-            image = cv2.imread(
-                str(self.instance_images_path[i])
-            )
-            results = self.face_detection.process(
-                cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            )
-            black_image = np.zeros((image.shape[0], image.shape[1]), dtype=np.uint8)
-
-            if results.detections:
-
-                for detection in results.detections:
-
-                    x_min = int(
-                        detection.location_data.relative_bounding_box.xmin
-                        * image.shape[1]
-                    )
-                    y_min = int(
-                        detection.location_data.relative_bounding_box.ymin
-                        * image.shape[0]
-                    )
-                    width = int(
-                        detection.location_data.relative_bounding_box.width
-                        * image.shape[1]
-                    )
-                    height = int(
-                        detection.location_data.relative_bounding_box.height
-                        * image.shape[0]
-                    )
-
-                    # draw the colored rectangle
-                    black_image[y_min : y_min + height, x_min : x_min + width] = 255
-
-            # blur the image
-            black_image = Image.fromarray(black_image, mode="L").filter(
-                ImageFilter.GaussianBlur(radius=self.blur_amount)
-            )
-            # to tensor
-            black_image = transforms.ToTensor()(black_image)
-            # resize as the instance image
-            black_image = transforms.Resize(
-                self.size, interpolation=transforms.InterpolationMode.BILINEAR
-            )(black_image)
-
-            example["mask"] = black_image
-
-        if self.h_flip and random.random() > 0.5:
-            hflip = transforms.RandomHorizontalFlip(p=1)
-
-            example["instance_images"] = hflip(example["instance_images"])
+        if not self.instance_latent_cached:
             if self.use_face_segmentation_condition:
-                example["mask"] = hflip(example["mask"])
+                image = cv2.imread(
+                    str(self.instance_images_path[i])
+                )
+                results = self.face_detection.process(
+                    cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                )
+                black_image = np.zeros((image.shape[0], image.shape[1]), dtype=np.uint8)
+
+                if results.detections:
+
+                    for detection in results.detections:
+
+                        x_min = int(
+                            detection.location_data.relative_bounding_box.xmin
+                            * image.shape[1]
+                        )
+                        y_min = int(
+                            detection.location_data.relative_bounding_box.ymin
+                            * image.shape[0]
+                        )
+                        width = int(
+                            detection.location_data.relative_bounding_box.width
+                            * image.shape[1]
+                        )
+                        height = int(
+                            detection.location_data.relative_bounding_box.height
+                            * image.shape[0]
+                        )
+
+                        # draw the colored rectangle
+                        black_image[y_min : y_min + height, x_min : x_min + width] = 255
+
+                # blur the image
+                black_image = Image.fromarray(black_image, mode="L").filter(
+                    ImageFilter.GaussianBlur(radius=self.blur_amount)
+                )
+                # to tensor
+                black_image = transforms.ToTensor()(black_image)
+                # resize as the instance image
+                black_image = transforms.Resize(
+                    self.size, interpolation=transforms.InterpolationMode.BILINEAR
+                )(black_image)
+
+                example["mask"] = black_image
+
+            if self.h_flip and random.random() > 0.5:
+                hflip = transforms.RandomHorizontalFlip(p=1)
+
+                example["instance_images"] = hflip(example["instance_images"])
+                if self.use_face_segmentation_condition:
+                    example["mask"] = hflip(example["mask"])
 
         example["instance_prompt_ids"] = self.tokenizer(
             text,

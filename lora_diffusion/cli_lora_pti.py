@@ -133,16 +133,24 @@ def get_models(
 def text2img_dataloader(train_dataset, train_batch_size, tokenizer, vae, text_encoder):
     def collate_fn(examples):
         input_ids = [example["instance_prompt_ids"] for example in examples]
-        pixel_values = [example["instance_images"] for example in examples]
+        if train_dataset.instance_latent_cached:
+            instance_latents = [example["instance_latents"] for example in examples]
+            instance_latents = torch.cat(instance_latents)
+            instance_latents = instance_latents.to(memory_format=torch.contiguous_format).float()
+        else:
+            pixel_values = [example["instance_images"] for example in examples]
+            pixel_values = torch.stack(pixel_values)
+            pixel_values = pixel_values.to(memory_format=torch.contiguous_format).float()
+
 
         # Concat class and instance examples for prior preservation.
         # We do this to avoid doing two forward passes.
+        #FIXME: this is not working for now, need to fix the caching logic
         if examples[0].get("class_prompt_ids", None) is not None:
+            raise NotImplementedError("Prior preservation Not working for now, need to fix the caching logic")
             input_ids += [example["class_prompt_ids"] for example in examples]
             pixel_values += [example["class_images"] for example in examples]
 
-        pixel_values = torch.stack(pixel_values)
-        pixel_values = pixel_values.to(memory_format=torch.contiguous_format).float()
 
         input_ids = tokenizer.pad(
             {"input_ids": input_ids},
@@ -153,11 +161,16 @@ def text2img_dataloader(train_dataset, train_batch_size, tokenizer, vae, text_en
 
         batch = {
             "input_ids": input_ids,
-            "pixel_values": pixel_values,
         }
+        if train_dataset.instance_latent_cached:
+            batch["instance_latents"] = instance_latents
+            if examples[0].get("mask", None) is not None:
+                batch["mask"] = torch.stack([example["mask"] for example in examples])
 
-        if examples[0].get("mask", None) is not None:
-            batch["mask"] = torch.stack([example["mask"] for example in examples])
+        else:
+            batch["pixel_values"] = pixel_values
+            if examples[0].get("mask", None) is not None:
+                batch["mask"] = torch.stack([example["mask"] for example in examples])
 
         return batch
 
@@ -182,11 +195,14 @@ def loss_step(
 ):
     weight_dtype = torch.float32
 
-    with torch.cuda.amp.autocast():
-        latents = vae.encode(
-            batch["pixel_values"].to(dtype=weight_dtype).to(unet.device)
-        ).latent_dist.sample()
-        latents = latents * 0.18215
+    if batch.get("instance_latents", None) is not None:
+        latents = batch["instance_latents"]
+    else:
+        with torch.cuda.amp.autocast():
+            latents = vae.encode(
+                batch["pixel_values"].to(dtype=weight_dtype).to(unet.device)
+            ).latent_dist.sample()
+            latents = latents * 0.18215
 
     noise = torch.randn_like(latents)
     bsz = latents.shape[0]
@@ -497,6 +513,8 @@ def train(
     instance_data_dir: str,
     pretrained_model_name_or_path: str,
     output_dir: str,
+    cache_instance_latent: bool = False,
+    instance_repeat_num: int = 16,
     train_text_encoder: bool = False,
     pretrained_vae_name_or_path: str = None,
     revision: Optional[str] = None,
@@ -636,9 +654,34 @@ def train(
         size=resolution,
         color_jitter=color_jitter,
         use_face_segmentation_condition=use_face_segmentation_condition,
+        repeats=instance_repeat_num
     )
 
     train_dataset.blur_amount = 200
+
+    # cache latents
+    # Disable local randomization
+    if cache_instance_latent:
+        train_dataset.randomized = False
+        print("Caching Instance Latents")
+        train_dataset.cached_instance_latent = []
+        if use_face_segmentation_condition:
+            train_dataset.cached_instance_mask = []
+        for i in tqdm(range(train_dataset._length//train_batch_size)):
+            current_batch_size = min(train_batch_size, train_dataset._length - i*train_batch_size)
+            current_batch = [train_dataset[i*train_batch_size+j] for j in range(current_batch_size)]
+            pixel_values = [current_batch[j]["instance_images"] for j in range(current_batch_size)] 
+            pixel_values = torch.stack(pixel_values).to(device)
+            with torch.no_grad():
+                latents = vae.encode(
+                pixel_values).latent_dist.sample()
+                latents = latents * 0.18215
+                latents_list = [latents[j].unsqueeze(0) for j in range(train_batch_size)]
+            train_dataset.cached_instance_latent.extend(latents_list)
+            if use_face_segmentation_condition:
+                train_dataset.cached_instance_mask.extend([current_batch[j]["mask"] for j in range(current_batch_size)])
+        train_dataset.instance_latent_cached = True
+        print("Cached Instance Latent")
 
     train_dataloader = text2img_dataloader(
         train_dataset, train_batch_size, tokenizer, vae, text_encoder
