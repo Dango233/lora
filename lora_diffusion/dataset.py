@@ -113,6 +113,8 @@ class PivotalTuningDatasetCapation(Dataset):
         self.templates = OBJECT_TEMPLATE if use_template == "object" else STYLE_TEMPLATE
 
         self._length = self.num_instance_images * repeats
+        self.pointer = list(range(self.num_instance_images))
+        self.randomized = False
 
         if class_data_root is not None:
             self.class_data_root = Path(class_data_root)
@@ -155,8 +157,9 @@ class PivotalTuningDatasetCapation(Dataset):
     def __getitem__(self, index):
         example = {}
         i = index % self.num_instance_images
-        if i == 0:
-            random.shuffle(self.instance_images_path)
+        if i == 0 and self.randomized >=1:
+            random.shuffle(self.pointer)
+        i = self.pointer[i]
         instance_image = Image.open(
             self.instance_images_path[i]
         )

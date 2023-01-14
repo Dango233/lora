@@ -644,6 +644,9 @@ def train(
         train_dataset, train_batch_size, tokenizer, vae, text_encoder
     )
 
+    # Enable local randomization
+    train_dataset.randomized = True
+
     index_no_updates = torch.arange(len(tokenizer)) < placeholder_token_ids[0]
 
     for tok_id in placeholder_token_ids:
