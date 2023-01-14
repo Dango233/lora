@@ -617,7 +617,8 @@ def train(
             learning_rate_text * gradient_accumulation_steps * train_batch_size
         )
         ti_lr = learning_rate_ti * gradient_accumulation_steps * train_batch_size
-        continue_inversion_lr = continue_inversion_lr * gradient_accumulation_steps * train_batch_size
+        if continue_inversion_lr is not None:
+            continue_inversion_lr = continue_inversion_lr * gradient_accumulation_steps * train_batch_size
     else:
         unet_lr = learning_rate_unet
         text_encoder_lr = learning_rate_text
