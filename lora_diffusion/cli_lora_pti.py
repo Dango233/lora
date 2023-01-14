@@ -774,12 +774,12 @@ def train(
                 "lr": text_encoder_lr,
             }
         ]
+    else:
+        params_to_freeze = itertools.chain(*text_encoder_lora_params)
+        for param in params_to_freeze:
+            param.requires_grad = False
 
     lora_optimizers = optimizer_class(params_to_optimize, weight_decay=weight_decay_lora)
-
-    unet.train()
-    text_encoder.train()
-
     train_dataset.blur_amount = 70
 
     lr_scheduler_lora = get_scheduler(
