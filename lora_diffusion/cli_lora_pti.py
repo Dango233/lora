@@ -555,6 +555,7 @@ def train(
     lr_warmup_steps: int = 0,
     lr_scheduler_lora: str = "linear",
     lr_warmup_steps_lora: int = 0,
+    lr_scheduler_span:float = 1,
     weight_decay_ti: float = 0.00,
     weight_decay_lora: float = 0.001,
     use_8bit_adam: bool = False,
@@ -738,7 +739,7 @@ def train(
             lr_scheduler,
             optimizer=ti_optimizer,
             num_warmup_steps=lr_warmup_steps,
-            num_training_steps=max_train_steps_ti,
+            num_training_steps=max_train_steps_ti // lr_scheduler_span,
         )
 
         train_inversion(
@@ -829,7 +830,7 @@ def train(
         lr_scheduler_lora,
         optimizer=lora_optimizers,
         num_warmup_steps=lr_warmup_steps_lora,
-        num_training_steps=max_train_steps_tuning,
+        num_training_steps=max_train_steps_tuning // lr_scheduler_span,
     )
 
     perform_tuning(
