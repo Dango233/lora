@@ -169,6 +169,8 @@ def text2img_dataloader(train_dataset, train_batch_size, tokenizer, vae, text_en
 
         else:
             batch["pixel_values"] = pixel_values
+            if examples[0].get("preprocessed_mask", None) is not None:
+                batch["preprocessed_mask"] = torch.stack([example["preprocessed_mask"] for example in examples])
             if examples[0].get("mask", None) is not None:
                 batch["mask"] = torch.stack([example["mask"] for example in examples])
 
@@ -240,7 +242,12 @@ def loss_step(
     else:
         raise ValueError(f"Unknown prediction type {scheduler.config.prediction_type}")
 
-    if batch.get("mask", None) is not None:
+
+    if batch.get("preprocessed_mask", None) is not None:
+        mask = batch["preprocessed_mask"].to(model_pred.device)
+        model_pred = model_pred * mask
+        target = target * mask
+    elif batch.get("mask", None) is not None:
 
         mask = (
             batch["mask"]
@@ -551,6 +558,7 @@ def train(
     continue_inversion: bool = True,
     continue_inversion_lr: Optional[float] = None,
     use_face_segmentation_condition: bool = False,
+    use_preprocessed_mask: bool = False,
     train_timesteps_percentage: float = 0.8,
     scale_lr: bool = False,
     lr_scheduler: str = "linear",
@@ -657,7 +665,8 @@ def train(
         size=resolution,
         color_jitter=color_jitter,
         use_face_segmentation_condition=use_face_segmentation_condition,
-        repeats=instance_repeat_num
+        repeats=instance_repeat_num,
+        use_preprocessed_mask=use_preprocessed_mask,
     )
 
     train_dataset.blur_amount = 200

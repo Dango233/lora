@@ -7,6 +7,7 @@ import numpy as np
 from PIL import Image, ImageFilter
 from torch.utils.data import Dataset
 from torchvision import transforms
+import torch
 
 OBJECT_TEMPLATE = [
     "a photo of a {}",
@@ -95,7 +96,8 @@ class PivotalTuningDatasetCapation(Dataset):
         resize=True,
         use_face_segmentation_condition=False,
         blur_amount: int = 70,
-        repeats = 12
+        repeats = 12,
+        use_preprocessed_mask = False,
     ):
         self.size = size
         self.tokenizer = tokenizer
@@ -106,6 +108,12 @@ class PivotalTuningDatasetCapation(Dataset):
             raise ValueError("Instance images root doesn't exists.")
 
         self.instance_images_path = list(Path(instance_data_root).iterdir())
+        # Only process the images with the extension of .jpg, .jpeg, .png
+        self.instance_images_path = [
+            path
+            for path in self.instance_images_path
+            if path.suffix.lower() in [".jpg", ".jpeg", ".png"]
+        ]
         self.num_instance_images = len(self.instance_images_path)
         self.token_map = token_map
 
@@ -143,6 +151,7 @@ class PivotalTuningDatasetCapation(Dataset):
         )
 
         self.use_face_segmentation_condition = use_face_segmentation_condition
+        self.use_preprocessed_mask = use_preprocessed_mask
         if self.use_face_segmentation_condition:
             import mediapipe as mp
 
@@ -186,7 +195,13 @@ class PivotalTuningDatasetCapation(Dataset):
 
         # print(text)
         if not self.instance_latent_cached:
-            if self.use_face_segmentation_condition:
+            if self.use_preprocessed_mask:
+                #insert /mask into the path
+                mask_path = self.instance_images_path[i].parent / "masks" / self.instance_images_path[i].name
+                mask_path = mask_path.parent / (mask_path.name + '.pt')
+                mask = torch.load(mask_path)
+                example["preprocessed_mask"] = mask
+            elif self.use_face_segmentation_condition:
                 image = cv2.imread(
                     str(self.instance_images_path[i])
                 )
