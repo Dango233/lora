@@ -439,6 +439,7 @@ def perform_tuning(
     placeholder_tokens,
     save_path,
     lr_scheduler_lora,
+    train_timesteps_percentage,
 ):
 
     progress_bar = tqdm(range(num_steps))
@@ -462,7 +463,7 @@ def perform_tuning(
                 vae,
                 text_encoder,
                 scheduler,
-                t_mutliplier=0.8,
+                t_mutliplier=train_timesteps_percentage,
                 mixed_precision=True,
             )
             loss.backward()
@@ -550,6 +551,7 @@ def train(
     continue_inversion: bool = True,
     continue_inversion_lr: Optional[float] = None,
     use_face_segmentation_condition: bool = False,
+    train_timesteps_percentage: float = 0.8,
     scale_lr: bool = False,
     lr_scheduler: str = "linear",
     lr_warmup_steps: int = 0,
@@ -846,6 +848,7 @@ def train(
         placeholder_token_ids=placeholder_token_ids,
         save_path=output_dir,
         lr_scheduler_lora=lr_scheduler_lora,
+        train_timesteps_percentage = train_timesteps_percentage
     )
 
 
