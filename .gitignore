@@ -6,6 +6,7 @@ __test*
 merged_lora*
 wandb
 exps
-.vscode
 build/
 lora_diffusion.egg-info/
+exps*
+.vscode
