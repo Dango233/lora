@@ -837,20 +837,15 @@ def train(
             target_replace_module=lora_clip_target_modules,
             r=lora_rank,
         )
-        inspect_lora(text_encoder)
 
-    if train_text_encoder:
         params_to_optimize += [
             {
                 "params": itertools.chain(*text_encoder_lora_params),
                 "lr": text_encoder_lr,
             }
         ]
-    else:
-        params_to_freeze = itertools.chain(*text_encoder_lora_params)
-        for param in params_to_freeze:
-            param.requires_grad = False
-
+        inspect_lora(text_encoder)
+    
     lora_optimizers = optimizer_class(params_to_optimize, weight_decay=weight_decay_lora)
     train_dataset.blur_amount = 70
 
