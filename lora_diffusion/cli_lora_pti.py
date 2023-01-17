@@ -874,7 +874,7 @@ def train(
         placeholder_token_ids=placeholder_token_ids,
         save_path=output_dir,
         lr_scheduler_lora=lr_scheduler_lora,
-        train_timesteps_percentage = train_timesteps_percentage
+        train_timesteps_percentage = train_timesteps_percentage,
         lora_unet_target_modules=lora_unet_target_modules,
         lora_clip_target_modules=lora_clip_target_modules,
     )
