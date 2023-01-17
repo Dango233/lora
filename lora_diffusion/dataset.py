@@ -97,7 +97,7 @@ class PivotalTuningDatasetCapation(Dataset):
         use_face_segmentation_condition=False,
         blur_amount: int = 70,
         repeats = 12,
-        use_preprocessed_mask = False,
+        preprocessed_mask_dir = None,
     ):
         self.size = size
         self.tokenizer = tokenizer
@@ -151,7 +151,7 @@ class PivotalTuningDatasetCapation(Dataset):
         )
 
         self.use_face_segmentation_condition = use_face_segmentation_condition
-        self.use_preprocessed_mask = use_preprocessed_mask
+        self.preprocessed_mask_dir = preprocessed_mask_dir
         if self.use_face_segmentation_condition:
             import mediapipe as mp
 
@@ -195,10 +195,8 @@ class PivotalTuningDatasetCapation(Dataset):
 
         # print(text)
         if not self.instance_latent_cached:
-            if self.use_preprocessed_mask:
-                #insert /mask into the path
-                mask_path = self.instance_images_path[i].parent / "masks" / self.instance_images_path[i].name
-                mask_path = mask_path.parent / (mask_path.name + '.pt')
+            if self.preprocessed_mask_dir:
+                mask_path = Path(self.preprocessed_mask_dir) / (self.instance_images_path[i].name + '.pt')
                 mask = torch.load(mask_path)
                 example["preprocessed_mask"] = mask
             elif self.use_face_segmentation_condition:
