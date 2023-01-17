@@ -839,8 +839,7 @@ def train(
             target_replace_module=lora_clip_target_modules,
             r=lora_rank,
         )
-        inspect_lora(text_encoder)
-        
+        inspect_lora(text_encoder)        
     if train_text_encoder:
         params_to_optimize += [
             {
