@@ -13,7 +13,7 @@ else:
     xformers = None
 
 
-@functools.lru_cache
+@functools.lru_cache(maxsize=None)
 def test_xformers_backwards(size):
     @torch.enable_grad()
     def _grad(size):
