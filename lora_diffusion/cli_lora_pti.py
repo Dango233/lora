@@ -273,8 +273,9 @@ def loss_step(
         model_pred = model_pred * mask
 
         target = target * mask
-
-    loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
+    # prevent precision problem
+    loss = F.mse_loss(model_pred.float(), target.float(), reduction="none")
+    loss = loss.sum(0).mean()
     return loss
 
 
@@ -831,7 +832,8 @@ def train(
             param.requires_grad = False
     else:
         text_encoder.requires_grad_(False)
-    if train_text_encoder:
+        
+    if True:
         text_encoder_lora_params, _ = inject_trainable_lora(
             text_encoder,
             target_replace_module=lora_clip_target_modules,
@@ -844,8 +846,11 @@ def train(
                 "lr": text_encoder_lr,
             }
         ]
-        inspect_lora(text_encoder)
-    
+    else:
+        params_to_freeze = itertools.chain(*text_encoder_lora_params)
+    for param in params_to_freeze:
+        param.requires_grad = False
+
     lora_optimizers = optimizer_class(params_to_optimize, weight_decay=weight_decay_lora)
     train_dataset.blur_amount = 70
 
