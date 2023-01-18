@@ -32,6 +32,9 @@ from transformers import CLIPTextModel, CLIPTokenizer
 import wandb
 import fire
 
+from torch_ema import ExponentialMovingAverage
+from contextlib import nullcontext
+
 from lora_diffusion import (
     PivotalTuningDatasetCapation,
     extract_lora_ups_down,
@@ -284,6 +287,7 @@ def train_inversion(
     vae,
     text_encoder,
     dataloader,
+    ema,
     num_steps: int,
     scheduler,
     index_no_updates,
@@ -342,7 +346,7 @@ def train_inversion(
                 if global_step % accum_iter == 0:
                     optimizer.step()
                     optimizer.zero_grad()
-
+                    ema.update()
                     with torch.no_grad():
 
                         # normalize embeddings
@@ -388,16 +392,17 @@ def train_inversion(
                 progress_bar.set_postfix(**logs)
 
             if global_step % save_steps == 0:
-                save_all(
-                    unet=unet,
-                    text_encoder=text_encoder,
-                    placeholder_token_ids=placeholder_token_ids,
-                    placeholder_tokens=placeholder_tokens,
-                    save_path=os.path.join(
-                        save_path, f"step_inv_{global_step}.safetensors"
-                    ),
-                    save_lora=False,
-                )
+                with ema.average_parameters() if ema is not None else nullcontext():
+                    save_all(
+                        unet=unet,
+                        text_encoder=text_encoder,
+                        placeholder_token_ids=placeholder_token_ids,
+                        placeholder_tokens=placeholder_tokens,
+                        save_path=os.path.join(
+                            save_path, f"step_inv_{global_step}.safetensors"
+                        ),
+                        save_lora=False,
+                    )
                 if log_wandb:
                     with torch.no_grad():
                         pipe = StableDiffusionPipeline(
@@ -583,6 +588,7 @@ def train(
     wandb_log_prompt_cnt: int = 10,
     wandb_project_name: str = "new_pti_project",
     wandb_entity: str = "new_pti_entity",
+    ema_decay_ti: float = None
 ):
     torch.manual_seed(seed)
 
@@ -746,6 +752,13 @@ def train(
 
     # STEP 1 : Perform Inversion
     if perform_inversion:
+        if ema_decay_ti:
+            ema = ExponentialMovingAverage(
+                    text_encoder.get_input_embeddings().parameters(), 
+                    decay=ema_decay_ti)
+        else:
+            ema = None
+
         ti_optimizer = optimizer_class(
             text_encoder.get_input_embeddings().parameters(),
             lr=ti_lr,
@@ -766,7 +779,8 @@ def train(
             vae,
             text_encoder,
             train_dataloader,
-            max_train_steps_ti,
+            ema,
+            num_steps = max_train_steps_ti,
             accum_iter=gradient_accumulation_steps,
             scheduler=noise_scheduler,
             index_no_updates=index_no_updates,
@@ -868,7 +882,7 @@ def train(
         vae,
         text_encoder,
         train_dataloader,
-        max_train_steps_tuning,
+        num_steps = max_train_steps_tuning,
         scheduler=noise_scheduler,
         optimizer=lora_optimizers,
         save_steps=save_steps,
