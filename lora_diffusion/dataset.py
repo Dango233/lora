@@ -291,9 +291,9 @@ class PivotalTuningDatasetCapation(Dataset):
             if self.h_flip and random.random() > 0.5:
                 hflip = transforms.RandomHorizontalFlip(p=1)
 
-            example["instance_images"] = hflip(example["instance_images"])
-            if self.use_mask:
-                example["mask"] = hflip(example["mask"])
+                example["instance_images"] = hflip(example["instance_images"])
+                if self.use_mask:
+                    example["mask"] = hflip(example["mask"])
 
         example["instance_prompt_ids"] = self.tokenizer(
             text,
