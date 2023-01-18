@@ -10,3 +10,5 @@ build/
 lora_diffusion.egg-info/
 exps*
 .vscode
+build
+lora_diffusion.egg-info
