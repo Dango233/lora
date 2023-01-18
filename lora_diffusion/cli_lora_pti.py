@@ -346,7 +346,8 @@ def train_inversion(
                 if global_step % accum_iter == 0:
                     optimizer.step()
                     optimizer.zero_grad()
-                    ema.update()
+                    if ema is not None:
+                        ema.update()
                     with torch.no_grad():
 
                         # normalize embeddings
