@@ -696,7 +696,7 @@ def train(
         train_dataset.cached_instance_latent = []
         if use_face_segmentation_condition:
             train_dataset.cached_instance_mask = []
-        for i in tqdm(range(train_dataset._length//train_batch_size)):
+        for i in tqdm(range(math.ceil(train_dataset._length/train_batch_size))):
             current_batch_size = min(train_batch_size, train_dataset._length - i*train_batch_size)
             current_batch = [train_dataset[i*train_batch_size+j] for j in range(current_batch_size)]
             pixel_values = [current_batch[j]["instance_images"] for j in range(current_batch_size)] 
@@ -705,7 +705,7 @@ def train(
                 latents = vae.encode(
                 pixel_values).latent_dist.sample()
                 latents = latents * 0.18215
-                latents_list = [latents[j].unsqueeze(0) for j in range(train_batch_size)]
+                latents_list = [latents[j].unsqueeze(0) for j in range(current_batch_size)]
             train_dataset.cached_instance_latent.extend(latents_list)
             if use_face_segmentation_condition:
                 train_dataset.cached_instance_mask.extend([current_batch[j]["mask"] for j in range(current_batch_size)])
