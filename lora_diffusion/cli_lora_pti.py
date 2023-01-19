@@ -271,7 +271,7 @@ def loss_step(
             + 0.05
         )
 
-        mask = mask / mask.mean()
+        mask = mask / mask.max()
 
         model_pred = model_pred * mask
 
@@ -346,7 +346,8 @@ def train_inversion(
                 if global_step % accum_iter == 0:
                     optimizer.step()
                     optimizer.zero_grad()
-                    ema.update()
+                    if ema is not None:
+                        ema.update()
                     with torch.no_grad():
 
                         # normalize embeddings
@@ -573,6 +574,7 @@ def train(
     use_face_segmentation_condition: bool = False,
     preprocessed_mask_dir: Optional[str] = None,
     train_timesteps_percentage: float = 0.8,
+    use_mask_captioned_data: bool = False,
     scale_lr: bool = False,
     lr_scheduler: str = "linear",
     lr_warmup_steps: int = 0,
@@ -681,6 +683,7 @@ def train(
         use_face_segmentation_condition=use_face_segmentation_condition,
         repeats=instance_repeat_num,
         preprocessed_mask_dir=preprocessed_mask_dir,
+        use_mask_captioned_data=use_mask_captioned_data,
     )
 
     train_dataset.blur_amount = 200
