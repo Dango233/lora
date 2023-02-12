@@ -572,7 +572,7 @@ def train(
     continue_inversion: bool = False,
     continue_inversion_lr: Optional[float] = None,
     use_face_segmentation_condition: bool = False,
-    use_preprocessed_mask: bool = False,
+    preprocessed_mask_dir: Optional[str] = None,
     train_timesteps_percentage: float = 0.8,
     use_mask_captioned_data: bool = False,
     scale_lr: bool = False,
@@ -682,7 +682,7 @@ def train(
         color_jitter=color_jitter,
         use_face_segmentation_condition=use_face_segmentation_condition,
         repeats=instance_repeat_num,
-        use_preprocessed_mask=use_preprocessed_mask,
+        preprocessed_mask_dir=preprocessed_mask_dir,
         use_mask_captioned_data=use_mask_captioned_data,
     )
 
